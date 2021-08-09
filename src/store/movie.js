@@ -4,7 +4,10 @@ import _uniqBy from 'lodash/uniqBy'
 export default {
   namespaced: true,
   state: () => ({
-    movies: []
+    movies: [],
+    loading: false,
+    message: 'Search for the movie title!',
+    theMovie: {}
   }),
   getters: {},
   mutations: {
@@ -16,35 +19,81 @@ export default {
   },
   actions: {
     async searchMovies({ state, commit }, payload) { // 첫 인수가 context가 들어옴. commit만 쓰려고 분해할당
-      const res = await _fetchMovie(payload)
-      const { Search, totalResults } = res.data
+      if (state.loading) return // 엔터키 여러번 눌렀을때 여러면 서버 요청이 가면 안되니까
 
+      // 로딩 시작
       commit('updateState', {
-        movies: _uniqBy(Search, 'imdbID')
+        loading: true,
+        message: ''
       })
 
-      const total = parseInt(totalResults, 10) // 정수로, 10진법
-      const pageLength = Math.ceil(total / 10)
-
-      // 검색된 총 결과가 2페이지 이상인 경우
-      if (pageLength > 1) {
-        // 2페이지부터 반복 처리
-        for (let page = 2; page <= pageLength; page += 1) {
-          // 반복되는 페이지 번호가 요청한 개수보다 크면 요청 종료
-          if (page > (payload.number / 10)) break
-          // 추가 요청 처리
-          const res = await _fetchMovie({
-            ...payload,
-            page
-          })
-          const { Search } = res.data
-          commit('updateState', {
-            movies: _uniqBy([
-              ...state.movies,
-              ...Search
-            ], 'imdbID')
-          })
+      try {
+        const res = await _fetchMovie(payload)
+        const { Search, totalResults } = res.data
+  
+        commit('updateState', {
+          movies: _uniqBy(Search, 'imdbID')
+        })
+  
+        const total = parseInt(totalResults, 10) // 정수로, 10진법
+        const pageLength = Math.ceil(total / 10)
+  
+        // 검색된 총 결과가 2페이지 이상인 경우
+        if (pageLength > 1) {
+          // 2페이지부터 반복 처리
+          for (let page = 2; page <= pageLength; page += 1) {
+            // 반복되는 페이지 번호가 요청한 개수보다 크면 요청 종료
+            if (page > (payload.number / 10)) break
+            // 추가 요청 처리
+            const res = await _fetchMovie({
+              ...payload,
+              page
+            })
+            const { Search } = res.data
+            commit('updateState', {
+              movies: _uniqBy([
+                ...state.movies,
+                ...Search
+              ], 'imdbID')
+            })
+          }
         }
+      } catch (error) {
+        console.log(error)
+        commit('updateState', {
+          message: error.message,
+          movies: []
+        })
+      } finally {
+        // 로딩 종료
+        commit('updateState', {
+          loading: false
+        })
+      }
+    },
+    async searchMovieWithId({ state, commit }, payload) {
+      if (state.loading) return
+
+      commit('updateState', {
+        loading: true
+      })
+
+      try {
+        const res = await _fetchMovie({
+          id: payload.id
+        })
+        console.log(res.data)
+        commit('updateState', {
+          theMovie: res.data
+        })
+      } catch (error) {
+        commit('updateState', {
+          message: error.message
+        })
+      } finally {
+        commit('updateState', {
+          loading: false
+        })
       }
     }
   }
@@ -57,6 +106,9 @@ fetchMovie({
 })
 */
 async function _fetchMovie(payload) {
-  const { title, type, year, page } = payload
-  return await axios.get(`https://www.omdbapi.com/?apikey=4d8ddc33&s=${title}&type=${type}&y=${year}&page=${page}`)
+  const { title, type, year, page, id } = payload
+  const url = id // id가 있을 때, 없을 때
+    ? `https://www.omdbapi.com/?apikey=4d8ddc33&i=${id}&plot=full`
+    : `https://www.omdbapi.com/?apikey=4d8ddc33&s=${title}&type=${type}&y=${year}&page=${page}`
+  return await axios.get(url)
 }

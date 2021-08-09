@@ -29,7 +29,12 @@ module.exports = {
           'style-loader', // style tag
           'css-loader', // css file
           'postcss-loader',
-          'sass-loader'
+          {
+            loader: 'sass-loader', // scss문법 분석해준다. 
+            options: { // 옵션 추가
+              additionalData: '@import "@/scss/main";' // 분석되는 scss 가장 앞부분이 이 코드가 들어가게 된다.
+            }
+          }
         ]
       },
       { // .js로 끝나는 파일을 만나면 babel-loader의 도움을 받아서 결과물을 만들도록
